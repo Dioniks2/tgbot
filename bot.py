@@ -308,8 +308,8 @@ async def back_to_main(message: Message):
 @dp.message(F.text == "ℹ️ О боте")
 async def about_bot(message: Message):
     await message.answer(
-        "🤖 Бот создан для учебного проекта.\n"
-        "Выполнил студент группы: [ТВОЕ ИМЯ]\n"
+        "Бот создан для учебного проекта.\n"
+        "Выполнил студент группы ИВТ-252: Гузиков Сергей \n"
         "Функционал включает кредиты, вклады и финансовый трекер.",
         reply_markup=get_main_keyboard()
     )
