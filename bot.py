@@ -7,7 +7,6 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
-# 📌 ВСТАВЬ СВОЙ ТОКЕН СЮДА
 BOT_TOKEN = "8703558017:AAElNjdskeY4p5blJxohAwb-KThZvMOtUQM"
 
 bot = Bot(token=BOT_TOKEN)
@@ -175,10 +174,13 @@ async def deposit_rate(message: Message, state: FSMContext):
 
 @dp.message(DepositStates.waiting_for_term)
 async def deposit_calc(message: Message, state: FSMContext):
+    # 🔧 ФИКС: сохраняем term в состояние
+    await state.update_data(term=int(message.text))
+
     data = await state.get_data()
     amount = data['amount']
     rate = data['rate'] / 100
-    term = data['term']
+    term = data['term']  # Теперь работает
 
     # Простой расчет с капитализацией каждый месяц
     final_amount = amount * (1 + rate / 12) ** term
@@ -233,26 +235,68 @@ async def game_status(message: Message):
 async def game_save_money(message: Message):
     conn = sqlite3.connect("finance_game.db")
     cursor = conn.cursor()
-    cursor.execute("SELECT current_week, total_saved FROM users WHERE user_id = ?", (message.from_user.id,))
-    user = cursor.fetchone()
 
-    if user:
-        current_week, total_saved = user
-        money_to_save = current_week * 100
+    try:
+        cursor.execute("SELECT current_week, total_saved FROM users WHERE user_id = ?", (message.from_user.id,))
+        user = cursor.fetchone()
 
-        new_week = current_week + 1
-        new_total = total_saved + money_to_save
+        if user:
+            current_week, total_saved = user
 
-        cursor.execute("UPDATE users SET current_week = ?, total_saved = ? WHERE user_id = ?",
-                       (new_week, new_total, message.from_user.id))
-        conn.commit()
+            # Проверка на завершение игры
+            if current_week > 52:
+                await message.answer(
+                    "🏆 Вы уже завершили игру! Используйте /reset_game для перезапуска.",
+                    reply_markup=get_main_keyboard()
+                )
+                return
 
-        await message.answer(
-            f"🎉 Отлично! Вы отложили {money_to_save} руб.\n"
-            f"Следующая неделя: {new_week}-я.",
-            reply_markup=get_main_keyboard()
-        )
+            money_to_save = current_week * 100
+            new_week = current_week + 1
+            new_total = total_saved + money_to_save
+
+            cursor.execute("UPDATE users SET current_week = ?, total_saved = ? WHERE user_id = ?",
+                           (new_week, new_total, message.from_user.id))
+            conn.commit()
+
+            if new_week > 52:
+                await message.answer(
+                    f"🏆 **ПОЗДРАВЛЯЮ!** 🏆\n"
+                    f"Вы прошли игру '52 недели богатства'!\n"
+                    f"💰 Всего накоплено: {new_total:.2f} руб.",
+                    reply_markup=get_main_keyboard()
+                )
+            else:
+                await message.answer(
+                    f"✅ Отлично! Вы отложили {money_to_save} руб.\n"
+                    f"📊 Прогресс: {new_week - 1}/52 недель\n"
+                    f"💰 Всего накоплено: {new_total:.2f} руб.\n\n"
+                    f"🎯 На следующей неделе нужно отложить: {new_week * 100} руб.",
+                    reply_markup=get_main_keyboard()
+                )
+        else:
+            # Создаем нового пользователя
+            cursor.execute("INSERT INTO users (user_id) VALUES (?)", (message.from_user.id,))
+            conn.commit()
+            await message.answer(
+                "🔄 Игра начата! Нажмите '🎯 Игра: 52 недели богатства' чтобы начать.",
+                reply_markup=get_main_keyboard()
+            )
+    except Exception as e:
+        await message.answer(f"❌ Ошибка: {str(e)}")
+    finally:
+        conn.close()
+
+
+# ➕ Добавьте команду для сброса игры
+@dp.message(Command("reset_game"))
+async def reset_game(message: Message):
+    conn = sqlite3.connect("finance_game.db")
+    cursor = conn.cursor()
+    cursor.execute("UPDATE users SET current_week = 1, total_saved = 0 WHERE user_id = ?", (message.from_user.id,))
+    conn.commit()
     conn.close()
+    await message.answer("🔄 Игра сброшена! Начните накопления заново.", reply_markup=get_main_keyboard())
 
 
 @dp.message(F.text == "🔙 Назад")
