@@ -7,7 +7,7 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
-BOT_TOKEN = "8703558017:AAElNjdskeY4p5blJxohAwb-KThZvMOtUQM"
+
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
